@@ -14,6 +14,7 @@ Configure any other options if needed.
 |write_covers|Write covers to tracks.
 
 ## Token Acquisition
+**Plus subscription required.**    
 Web tokens won't work. It must be from one of the following:
 
 From the Windows Yandex Music app:    
