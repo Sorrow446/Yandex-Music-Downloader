@@ -14,9 +14,7 @@ Configure any other options if needed.
 |write_covers|Write covers to tracks.
 
 ## Token Acquisition
-From your browser:    
-- Open the following, then get the token from the resulting "access_token" param.    
-`https://oauth.yandex.ru/authorize?response_type=token&client_id=97fe03033fa34407ac9bcf91d5afed5b`
+Web tokens won't work. It must be from one of the following:
 
 From the Windows Yandex Music app:    
 - Run the included `extract_token.exe` binary.
