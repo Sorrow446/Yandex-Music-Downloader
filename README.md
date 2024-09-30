@@ -13,6 +13,7 @@ Configure any other options if needed.
 |out_path|Where to download to. Path will be made if it doesn't already exist.
 |keep_covers|Keep covers in album folder.
 |write_covers|Write covers to tracks.
+|sleep|Sleep between each track processing to prevent potential rate-limiting.
 
 ## Token Acquisition
 **Plus subscription required.**    
