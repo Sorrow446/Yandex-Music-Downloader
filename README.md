@@ -1,6 +1,7 @@
 # Yandex-Music-Downloader
 Yandex Music (Яндекс Музыка) downloader written in Rust with lossless support.
 ![](https://i.imgur.com/mQrzTfQ.png)
+[Pre-compiled binaries](https://github.com/Sorrow446/Yandex-Music-Downloader/releases)
 
 ## Setup
 Input token into config file.
