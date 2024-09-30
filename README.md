@@ -19,11 +19,13 @@ Web tokens won't work. It must be from one of the following:
 
 From the Windows Yandex Music app:    
 - Run the included `extract_token.exe` binary.
+
 The app must be installed and logged in, doesn't have to be running.
 
 From Android:    
-- Sniff the Yandex Music app on your Android device or emulator. Look for the Authorization header.
-`OAuth xxxx...`
+- Sniff the Yandex Music app on your Android device or emulator.
+
+Look for the Authorization header. `OAuth xxxx...`
 
 They last for about a year.
 
