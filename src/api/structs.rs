@@ -12,11 +12,18 @@ pub struct UserInfo {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LyricsInfo {
+    pub has_available_sync_lyrics: bool,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Volume {
     pub artists: Vec<Artist>,
     pub id: String,
     pub title: String,
     pub available: bool,
+    pub lyrics_info: LyricsInfo,
 }
 
 #[derive(Deserialize)]
@@ -43,8 +50,19 @@ pub struct AlbumResult {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LyricsResult {
+    pub download_url: String,
+}
+
+#[derive(Deserialize)]
 pub struct AlbumMeta {
     pub result: AlbumResult,
+}
+
+#[derive(Deserialize)]
+pub struct LyricsMeta {
+    pub result: LyricsResult,
 }
 
 #[derive(Deserialize)]

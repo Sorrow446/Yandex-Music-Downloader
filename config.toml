@@ -4,3 +4,5 @@ out_path = ""
 token = ""
 sleep = false
 write_covers = true
+get_original_covers = false
+write_lyrics = true

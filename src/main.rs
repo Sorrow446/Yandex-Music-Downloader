@@ -64,8 +64,20 @@ fn parse_config() -> Result<Config, Box<dyn Error>> {
         config.keep_covers = args.keep_covers;
     }
 
+    if args.sleep {
+        config.sleep = args.sleep;
+    }
+
     if args.write_covers {
         config.write_covers = args.write_covers;
+    }
+
+    if args.write_lyrics {
+        config.write_lyrics = args.write_lyrics;
+    }
+
+    if args.get_original_covers {
+        config.get_original_covers = args.get_original_covers;
     }
 
     config.format = args.format.unwrap_or(config.format);
@@ -110,6 +122,7 @@ fn parse_album_meta(meta: &AlbumResult, track_total: u16) -> ParsedAlbumMeta {
         artist: String::new(),
         cover_data: Vec::new(),
         genre: meta.genre.clone(),
+        has_lyrics: false,
         title: String::new(),
         track_num: 0,
         track_total,
@@ -122,10 +135,12 @@ fn parse_track_meta(meta: &mut ParsedAlbumMeta, track_meta: &Volume, track_num: 
     meta.artist =  parse_artists(&track_meta.artists);
     meta.title = track_meta.title.clone();
     meta.track_num = track_num;
+    meta.has_lyrics = track_meta.lyrics_info.has_available_sync_lyrics;
 }
 
-fn get_cover_data(c: &mut YandexMusicClient, url: &str) -> Result<Vec<u8>, Box<ReqwestErr>> {
-    let replaced_url = url.replace("/%%", "/1000x1000");
+fn get_cover_data(c: &mut YandexMusicClient, url: &str, original: bool) -> Result<Vec<u8>, Box<ReqwestErr>> {
+    let to_replace = if original { "/orig" } else { "/1000x1000" };
+    let replaced_url = url.replace("/%%", to_replace);
     let full_url = format!("https://{}", replaced_url);
 
     let resp = c.get_file_resp(&full_url, false)?;
@@ -283,6 +298,17 @@ fn write_tags(track_path: &PathBuf, codec: &str, meta: &ParsedAlbumMeta) -> Resu
     Ok(())
 }
 
+fn write_lyrics(c: &mut YandexMusicClient, track_id: &str, out_path: &PathBuf) -> Result<(), Box<dyn Error>> {
+    let lyrics_meta = c.get_lyrics_meta(track_id)?;
+
+    let mut f = File::create(out_path)?;
+    let resp = c.get_file_resp(&lyrics_meta.download_url, false)?;
+    let data = resp.bytes()?;
+
+    f.write_all(&data)?;
+    Ok(())
+}
+
 fn process_track(c: &mut YandexMusicClient, track_id: &str, meta: &ParsedAlbumMeta, config: &Config, album_path: &PathBuf) -> Result<(), Box<dyn Error>> {
     let info = c.get_file_info(track_id, &config.format_str)?;
     let (specs, file_ext) = parse_specs(&info.codec, info.bitrate)
@@ -321,6 +347,12 @@ fn process_track(c: &mut YandexMusicClient, track_id: &str, meta: &ParsedAlbumMe
     fs::rename(&track_path_incomp, &track_path)?;
     write_tags(&track_path, &info.codec, &meta)?;
 
+    if meta.has_lyrics && config.write_lyrics {
+        println!("Writing lyrics...");
+        let lyrics_path = utils::append_to_path_buf(&track_path_no_ext, ".lrc");
+        write_lyrics(c, track_id, &lyrics_path)?;
+    }
+
     Ok(())
 
 }
@@ -341,7 +373,8 @@ fn process_album(c: &mut YandexMusicClient, config: &Config, album_id: &str) -> 
     let album_path = config.out_path.join(san_album_folder);
     fs::create_dir_all(&album_path)?;
 
-    let cover_data = get_cover_data(c, &meta.cover_uri)?;
+
+    let cover_data = get_cover_data(c, &meta.cover_uri, config.get_original_covers)?;
 
     if config.keep_covers {
         write_cover(&cover_data, &album_path)?;

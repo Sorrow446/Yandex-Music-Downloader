@@ -3,10 +3,10 @@ use crate::api::structs::*;
 use std::collections::HashMap;
 use std::error::Error;
 use std::time::{SystemTime, SystemTimeError, UNIX_EPOCH};
-use sha2::Sha256;  // Import Sha256 for HMAC
+use sha2::Sha256;
 use base64::engine::{general_purpose, Engine};
 use hmac::{Hmac, Mac};
-use hmac::digest::crypto_common;
+use hmac::digest::crypto_common::InvalidLength as CryptoInvalidLength;
 
 use reqwest::blocking::{Client, Response as ReqwestResp};
 use reqwest::Error as ReqwestErr;
@@ -79,8 +79,44 @@ impl YandexMusicClient {
         }
     }
 
+    fn create_lyrics_signature(&mut self, ts: &str, track_id: &str) -> Result<String, CryptoInvalidLength> {
+        let msg = format!("{}{}", track_id, ts);
+
+        let mut mac = HmacSha256::new_from_slice(SECRET.as_bytes())?;
+        mac.update(msg.as_bytes());
+
+        let result = mac.finalize();
+        let hmac_bytes = result.into_bytes();
+        let base64_encoded = general_purpose::STANDARD.encode(hmac_bytes);
+
+        Ok(base64_encoded)
+    }
+
+    pub fn get_lyrics_meta(&mut self, track_id: &str) -> Result<LyricsResult, Box<dyn Error>> {
+        let url = format!("{}/tracks/{}/lyrics", BASE_URL, track_id);
+        let ts = self.get_unix_timestamp()?;
+        let signature = self.create_lyrics_signature(&ts, track_id)?;
+
+        let params: HashMap<&str, &str> = HashMap::from([
+            ("timeStamp", ts.as_str()),
+            ("trackId", track_id),
+            ("format", "LRC"),
+            ("sign", &signature),
+        ]);
+
+        let resp = self.c.get(url)
+            .header(AUTHORIZATION, &self.token)
+            .header("X-Yandex-Music-Client", YANDEX_USER_AGENT)
+            .query(&params)
+            .send()?;
+
+        resp.error_for_status_ref()?;
+        let meta: LyricsMeta = resp.json()?;
+        Ok(meta.result)
+    }
+
     // :)
-    fn create_signature(&mut self, ts: &str, track_id: &str, quality: &str) -> Result<String, crypto_common::InvalidLength> {
+    fn create_signature(&mut self, ts: &str, track_id: &str, quality: &str) -> Result<String, CryptoInvalidLength> {
         let msg = format!("{}{}{}flacaache-aacmp3raw", ts, track_id, quality);
 
         let mut mac = HmacSha256::new_from_slice(SECRET.as_bytes())?;
