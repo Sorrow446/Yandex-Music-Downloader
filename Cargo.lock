@@ -1648,7 +1648,7 @@ dependencies = [
 
 [[package]]
 name = "yandex_music_downloader"
-version = "0.1.0"
+version = "0.1.3"
 dependencies = [
  "base64",
  "clap",

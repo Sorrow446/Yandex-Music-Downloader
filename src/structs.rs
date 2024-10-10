@@ -54,6 +54,7 @@ pub struct ParsedAlbumMeta {
     pub cover_data: Vec<u8>,
     pub genre: String,
     pub has_lyrics: bool,
+    pub is_track_only: bool,
     pub label: String,
     pub title: String,
     pub track_num: u16,

@@ -17,14 +17,13 @@ use id3::frame::PictureType::CoverFront as MP3CoverFront;
 use mp4ameta::{Tag as Mp4Tag, Data as Mp4Data, Fourcc, Error as MP4Error};
 
 use crate::api::client::YandexMusicClient;
-use crate::api::structs::{AlbumResult, Artist, Label, Volume};
+use crate::api::structs::*;
 use crate::structs::{Args, Config, ParsedAlbumMeta};
 
 mod api;
 mod structs;
 mod utils;
 
-const REGEX_STR: &str = r#"^https://music.yandex.ru/album/(\d+)$"#;
 const BUF_SIZE: usize = 1024 * 1024;
 
 #[cfg(target_os = "windows")]
@@ -32,6 +31,11 @@ const IS_WINDOWS: bool = true;
 
 #[cfg(not(target_os = "windows"))]
 const IS_WINDOWS: bool = false;
+
+const REGEX_STRINGS: [&str; 2] = [
+    r#"^https://music\.yandex\.ru/album/(\d+)(?:/track/(\d+)(?:\?.+)?)?$"#,
+    r#"^https://music\.yandex\.ru/users/.+/playlists/(\d+)(:?\?.+)"#,
+];
 
 fn read_config() -> Result<Config, Box<dyn Error>> {
     let exe_path = utils::get_exe_path()?;
@@ -92,15 +96,35 @@ fn parse_config() -> Result<Config, Box<dyn Error>> {
     Ok(config)
 }
 
-fn check_url(url: &str, regex: &Regex) -> Option<String> {
-    if let Some(capture) = regex.captures(url) {
-        if let Some(m) = capture.get(1) {
-            let album_id = m.as_str().to_string();
-            return Some(album_id);
+// fn check_url(url: &str, regexes: &[Regex]) -> Option<(String, usize)> {
+//     for (idx, re) in regexes.iter().enumerate() {
+//         if let Some(capture) = re.captures(url) {
+//             if let Some(m) = capture.get(1) {
+//                 let id = m.as_str().to_string();
+//                 return Some((id, idx));
+//             }
+//         }
+//     }
+//     None
+// }
+
+fn check_url(url: &str, regexes: &[Regex]) -> Option<(String, String, usize)> {
+    for (idx, re) in regexes.iter().enumerate() {
+        if let Some(capture) = re.captures(url) {
+            if let Some(id_match) = capture.get(1) {
+                let id = id_match.as_str().to_string();
+                if let Some(track_id_match) = capture.get(2) {
+                    let track_id = track_id_match.as_str().to_string();
+                    return Some((id, track_id, idx));
+                }
+                return Some((id, String::new(), idx));
+            }
         }
     }
     None
 }
+
+
 fn parse_artists(artists: &[Artist]) -> String {
     artists.iter()
         .map(|a| a.name.clone())
@@ -115,6 +139,8 @@ fn parse_labels(labels: &[Label]) -> String {
         .join(", ")
 }
 
+
+// Clean these four up.
 fn parse_album_meta(meta: &AlbumResult, track_total: u16) -> ParsedAlbumMeta {
     ParsedAlbumMeta {
         album_artist: parse_artists(&meta.artists),
@@ -123,6 +149,7 @@ fn parse_album_meta(meta: &AlbumResult, track_total: u16) -> ParsedAlbumMeta {
         cover_data: Vec::new(),
         genre: meta.genre.clone(),
         has_lyrics: false,
+        is_track_only: false,
         title: String::new(),
         track_num: 0,
         track_total,
@@ -131,7 +158,32 @@ fn parse_album_meta(meta: &AlbumResult, track_total: u16) -> ParsedAlbumMeta {
     }
 }
 
-fn parse_track_meta(meta: &mut ParsedAlbumMeta, track_meta: &Volume, track_num: u16) {
+fn parse_album_meta_playlist(meta: &AlbumResultInPlaylist, track_total: u16, cover_data: Vec<u8>) -> ParsedAlbumMeta {
+    ParsedAlbumMeta {
+        album_artist: parse_artists(&meta.artists),
+        album_title: meta.title.clone(),
+        artist: String::new(),
+        cover_data,
+        genre: meta.genre.clone(),
+        has_lyrics: false,
+        is_track_only: false,
+        title: String::new(),
+        track_num: 0,
+        track_total,
+        label: parse_labels(&meta.labels),
+        year: meta.year,
+    }
+}
+
+fn parse_track_meta(meta: &mut ParsedAlbumMeta, track_meta: &Volume, track_num: u16, is_track_only: bool) {
+    meta.artist =  parse_artists(&track_meta.artists);
+    meta.title = track_meta.title.clone();
+    meta.track_num = track_num;
+    meta.has_lyrics = track_meta.lyrics_info.has_available_sync_lyrics;
+    meta.is_track_only = is_track_only;
+}
+
+fn parse_track_meta_playlist(meta: &mut ParsedAlbumMeta, track_meta: &PlaylistTrack, track_num: u16) {
     meta.artist =  parse_artists(&track_meta.artists);
     meta.title = track_meta.title.clone();
     meta.track_num = track_num;
@@ -191,11 +243,11 @@ fn download_track(c: &mut YandexMusicClient, url: &str, out_path: &PathBuf) -> R
         .progress_chars("#>-"));
 
     loop {
-        let n = &resp.read(&mut buf)?;
-        if n.to_owned() == 0 {
+        let n = resp.read(&mut buf)?;
+        if n == 0 {
             break;
         }
-        writer.write_all(&buf[..n.to_owned()])?;
+        writer.write_all(&buf[..n])?;
         downloaded += n;
         pb.set_position(downloaded as u64);
     }
@@ -314,7 +366,12 @@ fn process_track(c: &mut YandexMusicClient, track_id: &str, meta: &ParsedAlbumMe
     let (specs, file_ext) = parse_specs(&info.codec, info.bitrate)
         .ok_or_else(|| format!("the api returned an unknown codec: {}", info.codec))?;
 
-    println!("Track {} of {}: {} - {}", meta.track_num, meta.track_total, meta.title, specs);
+    if meta.is_track_only {
+        println!("Track 1 of 1: {} - {}", meta.title, specs);
+    } else {
+        println!("Track {} of {}: {} - {}", meta.track_num, meta.track_total, meta.title, specs);
+    }
+
     // let (specs, ext) = if let Some((specs, ext)) = parse_specs(&info.codec, info.bitrate) {
     //     (specs, ext)
     // } else {
@@ -357,8 +414,10 @@ fn process_track(c: &mut YandexMusicClient, track_id: &str, meta: &ParsedAlbumMe
 
 }
 
-fn process_album(c: &mut YandexMusicClient, config: &Config, album_id: &str) -> Result<(), Box<dyn Error>> {
-    let meta = c.get_album_meta(album_id)?;
+fn process_album(c: &mut YandexMusicClient, config: &Config, album_id: &str, track_id: &str) -> Result<(), Box<dyn Error>> {
+    let is_track_only = !track_id.is_empty();
+
+    let mut meta = c.get_album_meta(album_id)?;
     if !meta.available {
         return Err("album is unavailable".into());
     }
@@ -384,13 +443,21 @@ fn process_album(c: &mut YandexMusicClient, config: &Config, album_id: &str) -> 
         parsed_meta.cover_data = cover_data.clone();
     }
 
+    if is_track_only {
+        meta.volumes[0].retain(|track| track.id == track_id);
+        if meta.volumes[0].len() < 1 {
+            return Err("track not found in album".into())
+        }
+    }
+
+
     for (mut track_num, track) in meta.volumes[0].iter().enumerate() {
         track_num += 1;
         if !track.available {
             println!("Track is unavailable.");
             continue;
         }
-        parse_track_meta(&mut parsed_meta, track, track_num as u16);
+        parse_track_meta(&mut parsed_meta, track, track_num as u16, is_track_only);
         if let Err(e) = process_track(c, &track.id, &parsed_meta, &config, &album_path) {
             println!("Track failed.\n{:?}", e);
         }
@@ -398,12 +465,74 @@ fn process_album(c: &mut YandexMusicClient, config: &Config, album_id: &str) -> 
     Ok(())
 }
 
+fn select_user_playlist(meta: UserPlaylistsMetaResult, playlist_id: &str) -> Option<UserPlaylist> {
+    for tab in meta.tabs.into_iter().filter(|t| t.type_field == "created_playlist_tab") {
+        for item in tab.items.into_iter().filter(|i| i.type_field == "liked_playlist_item") {
+            if item.data.playlist.kind.to_string() == playlist_id {
+                return Some(item.data.playlist);
+            }
+        }
+    }
+
+    None
+}
+
+fn process_user_playlist(c: &mut YandexMusicClient, config: &Config, playlist_id: &str) -> Result<(), Box<dyn Error>> {
+    let user_meta = c.get_user_playlists_meta()?;
+    let playlist = select_user_playlist(user_meta, playlist_id)
+        .ok_or("playlist is empty or not present in user's playlists")?;
+
+    let meta = c.get_playlist_meta(&playlist.playlist_uuid)?;
+    if !meta.available {
+        return Err("playlist is unavailable".into());
+    }
+
+    let plist_folder = format!("{} - {}", meta.owner.login, meta.title);
+    println!("{}", plist_folder);
+
+    let san_album_folder = utils::sanitise(&plist_folder)?;
+    let plist_path = config.out_path.join(san_album_folder);
+    fs::create_dir_all(&plist_path)?;
+
+    let track_total = meta.tracks.len() as u16;
+
+    for (mut track_num, t) in meta.tracks.into_iter().enumerate() {
+        let track = t.track;
+        track_num += 1;
+        if !track.available {
+            println!("Track is unavailable.");
+            continue;
+        }
+
+        if !track.albums[0].available {
+            println!("Album is unavailable.");
+            continue;
+        }
+
+        let cover_data = get_cover_data(c, &track.cover_uri, config.get_original_covers)?;
+        let mut parsed_meta = parse_album_meta_playlist(&track.albums[0], track_total, cover_data);
+
+        parse_track_meta_playlist(&mut parsed_meta, &track, track_num as u16);
+        if let Err(e) = process_track(c, &track.id, &parsed_meta, &config, &plist_path) {
+            println!("Track failed.\n{:?}", e);
+        }
+    }
+
+    Ok(())
+}
+
+fn compile_regexes() -> Result<Vec<Regex>, regex::Error> {
+    REGEX_STRINGS.iter()
+        .map(|&s| Regex::new(s))
+        .collect()
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let config = parse_config()
         .expect("failed to parse args/config");
     fs::create_dir_all(&config.out_path)?;
 
-    let regex_comp = Regex::new(REGEX_STR)?;
+    let comp_regexes = compile_regexes()?;
 
     let mut c = YandexMusicClient::new(&config.token)?;
     println!("Signed in successfully.\n");
@@ -414,15 +543,22 @@ fn main() -> Result<(), Box<dyn Error>> {
         url_num += 1;
         println!("URL {} of {}:", url_num, url_total);
 
-        let album_id = if let Some(album_id) = check_url(url, &regex_comp) {
-            album_id
-        } else {
-            println!("Invalid URL: {}", url);
-            continue;
+        let (id, track_id, media_type) = match check_url(url, &comp_regexes) {
+            Some((id, track_id, media_type)) => (id, track_id, media_type),
+            None => {
+                println!("Invalid URL: {}", url);
+                continue; // Skip to the next iteration
+            }
         };
 
-        if let Err(e) = process_album(&mut c, &config, &album_id) {
-            println!("Album failed.\n{:?}", e);
+        let res = match media_type {
+            0 => process_album(&mut c, &config, &id, &track_id),
+            1 => process_user_playlist(&mut c, &config, &id),
+            _ => Ok(()),
+        };
+
+        if let Err(e) = res {
+            println!("URL failed.\n{:?}", e);
         }
 
         if config.sleep {
