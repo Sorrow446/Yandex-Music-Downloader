@@ -1,6 +1,6 @@
 # Yandex-Music-Downloader
 Yandex Music (Яндекс Музыка) downloader written in Rust with lossless support.
-![](https://i.imgur.com/mQrzTfQ.png)
+![](https://i.imgur.com/mQrzTfQ.png)    
 [Pre-compiled binaries](https://github.com/Sorrow446/Yandex-Music-Downloader/releases)
 
 ## Setup
@@ -32,9 +32,13 @@ Look for the Authorization header. `OAuth xxxx...`
 They last for about a year.
 
 ## Supported Media
+Wrap any URLs that contain params in double quotes if running on Windows.
+
 |Type|URL example|
 | --- | --- |
 |Album|`https://music.yandex.ru/album/33134482`
+|Track|`https://music.yandex.ru/album/2955514/track/25128596`
+|User Playlist (own only)|`https://music.yandex.ru/users/user@gmail.com/playlists/1000`
 
 ## Usage
 Args take priority over the config file.
@@ -50,10 +54,12 @@ Usage: ym-dl.exe [OPTIONS] --urls <URLS>...
 
 Options:
   -f, --format <FORMAT>      1 = AAC 64, 2 = AAC 192, 3 = AAC 256 / MP3 320, 4 = FLAC.
+  -g, --get-original-covers  Get original covers for tracks; may be large sometimes. true = orignal, false = 1000x1000.
+  -k, --keep-covers          Keep covers in album folder.
   -o, --out-path <OUT_PATH>  Output path.
   -s, --sleep                Sleep between each track processing to prevent potential rate-limiting.
-  -k, --keep-covers          Keep covers in album folder.
-  -w, --write-covers         Write covers to tracks.
+      --write-covers         Write covers to tracks.
+      --write-lyrics         Write timed lyrics when available.
   -u, --urls <URLS>...
   -h, --help                 Print help
 ```
