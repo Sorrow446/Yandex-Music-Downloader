@@ -38,7 +38,7 @@ Wrap any URLs that contain params in double quotes if running on Windows.
 | --- | --- |
 |Album|`https://music.yandex.ru/album/33134482`
 |Track|`https://music.yandex.ru/album/2955514/track/25128596`
-|User Playlist (own only)|`https://music.yandex.ru/users/user@gmail.com/playlists/1000`
+|User playlist (own only)|`https://music.yandex.ru/users/user@gmail.com/playlists/1000`
 
 ## Usage
 Args take priority over the config file.
