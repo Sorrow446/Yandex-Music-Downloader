@@ -34,7 +34,7 @@ const IS_WINDOWS: bool = false;
 
 const REGEX_STRINGS: [&str; 2] = [
     r#"^https://music\.yandex\.ru/album/(\d+)(?:/track/(\d+)(?:\?.+)?)?$"#,
-    r#"^https://music\.yandex\.ru/users/.+/playlists/(\d+)(:?\?.+)"#,
+    r#"^https://music\.yandex\.ru/users/.+/playlists/(\d+)(?:\?.+)?$"#,
 ];
 
 fn read_config() -> Result<Config, Box<dyn Error>> {
