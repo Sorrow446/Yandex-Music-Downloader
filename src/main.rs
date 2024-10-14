@@ -32,9 +32,10 @@ const IS_WINDOWS: bool = true;
 #[cfg(not(target_os = "windows"))]
 const IS_WINDOWS: bool = false;
 
-const REGEX_STRINGS: [&str; 2] = [
+const REGEX_STRINGS: [&str; 3] = [
     r#"^https://music\.yandex\.ru/album/(\d+)(?:/track/(\d+)(?:\?.+)?)?$"#,
     r#"^https://music\.yandex\.ru/users/.+/playlists/(\d+)(?:\?.+)?$"#,
+    r#"^https://music\.yandex\.ru/artist/(\d+)(?:/albums)?(?:\?.+)?$"#,
 ];
 
 fn read_config() -> Result<Config, Box<dyn Error>> {
@@ -414,7 +415,7 @@ fn process_track(c: &mut YandexMusicClient, track_id: &str, meta: &ParsedAlbumMe
 
 }
 
-fn process_album(c: &mut YandexMusicClient, config: &Config, album_id: &str, track_id: &str) -> Result<(), Box<dyn Error>> {
+fn process_album(c: &mut YandexMusicClient, config: &Config, album_id: &str, track_id: &str, artist_path: Option<&PathBuf>) -> Result<(), Box<dyn Error>> {
     let is_track_only = !track_id.is_empty();
 
     let mut meta = c.get_album_meta(album_id)?;
@@ -429,9 +430,11 @@ fn process_album(c: &mut YandexMusicClient, config: &Config, album_id: &str, tra
     println!("{}", album_folder);
 
     let san_album_folder = utils::sanitise(&album_folder)?;
-    let album_path = config.out_path.join(san_album_folder);
-    fs::create_dir_all(&album_path)?;
+    let album_path = artist_path
+        .unwrap_or(&config.out_path)
+        .join(san_album_folder);
 
+    fs::create_dir_all(&album_path)?;
 
     let cover_data = get_cover_data(c, &meta.cover_uri, config.get_original_covers)?;
 
@@ -521,6 +524,32 @@ fn process_user_playlist(c: &mut YandexMusicClient, config: &Config, playlist_id
     Ok(())
 }
 
+fn process_artist_albums(c: &mut YandexMusicClient, config: &Config, artist_id: &str) -> Result<(), Box<dyn Error>> {
+    let meta = c.get_artist_meta(&artist_id)?;
+    let artist_name = meta.artist.name;
+    println!("{}", artist_name);
+
+    let san_artist_folder = utils::sanitise(&artist_name)?;
+    let artist_path = config.out_path.join(&san_artist_folder);
+    let album_total = meta.albums.len();
+    if album_total < 1 {
+        return Err("artist has no albums".into());
+    }
+
+    for (mut album_num, album) in meta.albums.iter().enumerate() {
+        album_num += 1;
+        println!("Album {} of {}:", album_num, album_total);
+
+        // The artist meta endpoint doesn't return track info so just call process_album().
+        let res = process_album(c, &config, &album.id.to_string(), &String::new(), Some(&artist_path));
+        if let Err(e) = res {
+            println!("Album failed.\n{:?}", e);
+        }
+    }
+
+    Ok(())
+}
+
 fn compile_regexes() -> Result<Vec<Regex>, regex::Error> {
     REGEX_STRINGS.iter()
         .map(|&s| Regex::new(s))
@@ -552,8 +581,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         };
 
         let res = match media_type {
-            0 => process_album(&mut c, &config, &id, &track_id),
+            0 => process_album(&mut c, &config, &id, &track_id, None),
             1 => process_user_playlist(&mut c, &config, &id),
+            2 => process_artist_albums(&mut c, &config, &id),
             _ => Ok(()),
         };
 

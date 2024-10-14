@@ -178,7 +178,6 @@ impl YandexMusicClient {
     pub fn get_playlist_meta(&mut self, uuid: &str) -> Result<PlaylistMetaResult, Box<dyn Error>> {
         let url = format!("{}/playlist/{}", BASE_URL, uuid);
 
-
         let resp = self.c.get(url)
             .header(AUTHORIZATION, &self.token)
             .header("X-Yandex-Music-Client", YANDEX_USER_AGENT)
@@ -187,6 +186,20 @@ impl YandexMusicClient {
         resp.error_for_status_ref()?;
 
         let meta: PlaylistMeta = resp.json()?;
+        Ok(meta.result)
+    }
+
+    pub fn get_artist_meta(&mut self, artist_id: &str) -> Result<ArtistMetaResult, Box<dyn Error>> {
+        let url = format!("{}/artists/{}", BASE_URL, artist_id);
+
+        let resp = self.c.get(url)
+            .header(AUTHORIZATION, &self.token)
+            .header("X-Yandex-Music-Client", YANDEX_USER_AGENT)
+            .send()?;
+
+        resp.error_for_status_ref()?;
+
+        let meta: ArtistMeta = resp.json()?;
         Ok(meta.result)
     }
 

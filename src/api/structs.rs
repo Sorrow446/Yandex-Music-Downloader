@@ -121,7 +121,7 @@ pub struct UserPlaylistsMetaResult {
 
 #[derive(Deserialize)]
 pub struct UserPlaylistsMeta {
-    pub result: UserPlaylistsMetaResult
+    pub result: UserPlaylistsMetaResult,
 }
 
 #[derive(Deserialize)]
@@ -168,4 +168,25 @@ pub struct PlaylistMetaResult {
 #[derive(Deserialize)]
 pub struct PlaylistMeta {
     pub result: PlaylistMetaResult,
+}
+
+#[derive(Deserialize)]
+pub struct ArtistMetaAlbum {
+    pub id: u64,
+}
+
+#[derive(Deserialize)]
+pub struct ArtistMetaArtist {
+    pub name: String,
+}
+
+#[derive(Deserialize)]
+pub struct ArtistMetaResult {
+    pub albums: Vec<ArtistMetaAlbum>,
+    pub artist: ArtistMetaArtist,
+}
+
+#[derive(Deserialize)]
+pub struct ArtistMeta {
+    pub result: ArtistMetaResult,
 }
