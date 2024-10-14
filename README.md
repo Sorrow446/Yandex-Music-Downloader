@@ -38,7 +38,7 @@ Wrap any URLs that contain params in double quotes if running on Windows.
 |Type|URL example|
 | --- | --- |
 |Album|`https://music.yandex.ru/album/33134482`
-|Artist albums|`https://music.yandex.ru/artist/9838127 https://music.yandex.ru/artist/9838127/albums`
+|Artist albums|`https://music.yandex.ru/artist/9838127`, `https://music.yandex.ru/artist/9838127/albums`
 |Track|`https://music.yandex.ru/album/2955514/track/25128596`
 |User playlist (own only)|`https://music.yandex.ru/users/user@gmail.com/playlists/1000`
 
