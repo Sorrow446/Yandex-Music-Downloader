@@ -4,7 +4,7 @@ Yandex Music (Яндекс Музыка) downloader written in Rust with lossles
 [Pre-compiled binaries](https://github.com/Sorrow446/Yandex-Music-Downloader/releases)
 
 ## Setup
-Input token into config file.
+Input token into config file (config.toml).
 Configure any other options if needed.
 |Option|Info|
 | --- | --- |
