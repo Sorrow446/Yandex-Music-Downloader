@@ -1,5 +1,5 @@
 # Yandex-Music-Downloader
-Token extractor for use with my Yandex Music downloader.
+Token extractor for use with my Yandex Music downloader.    
 [Pre-compiled binaries](https://github.com/Sorrow446/Yandex-Music-Downloader/releases)
 
 ## Usage
