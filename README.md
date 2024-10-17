@@ -1,8 +1,9 @@
-# Yandex-Music-Downloader
+# Yandex-Token-Extractor
 Token extractor for use with my Yandex Music downloader.    
 [Pre-compiled binaries](https://github.com/Sorrow446/Yandex-Music-Downloader/releases)
 
 ## Usage
+The client can be open during extraction but doesn't have to be.
 
 # Windows
 1. Install the official [Yandex Music client](https://music.yandex.ru/download/) and login.
