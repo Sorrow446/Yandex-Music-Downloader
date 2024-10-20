@@ -140,15 +140,25 @@ fn parse_labels(labels: &[Label]) -> String {
         .join(", ")
 }
 
+fn parse_title(title: &str, version: Option<String>) -> String {
+    format!(
+        "{}{}",
+        title,
+        version.map_or("".to_string(), |v| format!(" ({})", v))
+    )
+}
+
 
 // Clean these four up.
 fn parse_album_meta(meta: &AlbumResult, track_total: u16) -> ParsedAlbumMeta {
-    ParsedAlbumMeta {
+    let album_title = parse_title(&meta.title, meta.version.clone());
+
+    let mut parsed = ParsedAlbumMeta {
         album_artist: parse_artists(&meta.artists),
-        album_title: meta.title.clone(),
+        album_title,
         artist: String::new(),
         cover_data: Vec::new(),
-        genre: meta.genre.clone(),
+        genre: meta.genre.clone().unwrap_or("".to_string()),
         has_lyrics: false,
         is_track_only: false,
         title: String::new(),
@@ -156,16 +166,20 @@ fn parse_album_meta(meta: &AlbumResult, track_total: u16) -> ParsedAlbumMeta {
         track_total,
         label: parse_labels(&meta.labels),
         year: meta.year,
-    }
+    };
+
+    parsed
 }
 
 fn parse_album_meta_playlist(meta: &AlbumResultInPlaylist, track_total: u16, cover_data: Vec<u8>) -> ParsedAlbumMeta {
+    let album_title = parse_title(&meta.title, meta.version.clone());
+
     ParsedAlbumMeta {
         album_artist: parse_artists(&meta.artists),
-        album_title: meta.title.clone(),
+        album_title,
         artist: String::new(),
         cover_data,
-        genre: meta.genre.clone(),
+        genre: meta.genre.clone().unwrap_or("".to_string()),
         has_lyrics: false,
         is_track_only: false,
         title: String::new(),
@@ -177,16 +191,20 @@ fn parse_album_meta_playlist(meta: &AlbumResultInPlaylist, track_total: u16, cov
 }
 
 fn parse_track_meta(meta: &mut ParsedAlbumMeta, track_meta: &Volume, track_num: u16, is_track_only: bool) {
+    let title = parse_title(&track_meta.title, track_meta.version.clone());
+
     meta.artist =  parse_artists(&track_meta.artists);
-    meta.title = track_meta.title.clone();
+    meta.title = title;
     meta.track_num = track_num;
     meta.has_lyrics = track_meta.lyrics_info.has_available_sync_lyrics;
     meta.is_track_only = is_track_only;
 }
 
 fn parse_track_meta_playlist(meta: &mut ParsedAlbumMeta, track_meta: &PlaylistTrack, track_num: u16) {
+    let title = parse_title(&track_meta.title, track_meta.version.clone());
+
     meta.artist =  parse_artists(&track_meta.artists);
-    meta.title = track_meta.title.clone();
+    meta.title = title;
     meta.track_num = track_num;
     meta.has_lyrics = track_meta.lyrics_info.has_available_sync_lyrics;
 }
@@ -373,13 +391,6 @@ fn process_track(c: &mut YandexMusicClient, track_id: &str, meta: &ParsedAlbumMe
         println!("Track {} of {}: {} - {}", meta.track_num, meta.track_total, meta.title, specs);
     }
 
-    // let (specs, ext) = if let Some((specs, ext)) = parse_specs(&info.codec, info.bitrate) {
-    //     (specs, ext)
-    // } else {
-    //     let err_str = format!("the api returned an unknown codec: {}", info.codec);
-    //     return Err(err_str.into());
-    // };
-
     let padding = utils::format_track_number(meta.track_num, meta.track_total);
     let san_track_fname = format!(
         "{}. {}", padding, utils::sanitise(&meta.title)?
@@ -423,7 +434,7 @@ fn process_album(c: &mut YandexMusicClient, config: &Config, album_id: &str, tra
         return Err("album is unavailable".into());
     }
 
-    let track_total = meta.volumes[0].len();
+    let track_total: usize = meta.volumes.iter().map(|v| v.len()).sum();;
     let mut parsed_meta = parse_album_meta(&meta, track_total as u16);
 
     let album_folder = format!("{} - {}", parsed_meta.album_artist, parsed_meta.album_title);
@@ -453,18 +464,20 @@ fn process_album(c: &mut YandexMusicClient, config: &Config, album_id: &str, tra
         }
     }
 
-
-    for (mut track_num, track) in meta.volumes[0].iter().enumerate() {
-        track_num += 1;
-        if !track.available {
-            println!("Track is unavailable.");
-            continue;
-        }
-        parse_track_meta(&mut parsed_meta, track, track_num as u16, is_track_only);
-        if let Err(e) = process_track(c, &track.id, &parsed_meta, &config, &album_path) {
-            println!("Track failed.\n{:?}", e);
+    for volume in meta.volumes {
+        for (mut track_num, track) in volume.iter().enumerate() {
+            track_num += 1;
+            if !track.available {
+                println!("Track is unavailable.");
+                continue;
+            }
+            parse_track_meta(&mut parsed_meta, track, track_num as u16, is_track_only);
+            if let Err(e) = process_track(c, &track.id, &parsed_meta, &config, &album_path) {
+                println!("Track failed.\n{:?}", e);
+            }
         }
     }
+
     Ok(())
 }
 
@@ -576,7 +589,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             Some((id, track_id, media_type)) => (id, track_id, media_type),
             None => {
                 println!("Invalid URL: {}", url);
-                continue; // Skip to the next iteration
+                continue;
             }
         };
 

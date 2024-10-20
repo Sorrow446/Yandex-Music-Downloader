@@ -24,6 +24,7 @@ pub struct Volume {
     pub title: String,
     pub available: bool,
     pub lyrics_info: LyricsInfo,
+    pub version: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -43,8 +44,9 @@ pub struct AlbumResult {
     pub artists: Vec<Artist>,
     pub available: bool,
     pub cover_uri: String,
-    pub genre: String,
+    pub genre: Option<String>,
     pub labels: Vec<Label>,
+    pub version: Option<String>,
     pub volumes: Vec<Vec<Volume>>,
     pub year: u16,
 }
@@ -138,6 +140,7 @@ pub struct PlaylistTrack {
     pub albums: Vec<AlbumResultInPlaylist>,
     pub artists: Vec<Artist>,
     pub cover_uri: String,
+    pub version: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -146,8 +149,9 @@ pub struct AlbumResultInPlaylist {
     pub title: String,
     pub artists: Vec<Artist>,
     pub available: bool,
-    pub genre: String,
+    pub genre: Option<String>,
     pub labels: Vec<Label>,
+    pub version: Option<String>,
     pub year: u16,
 }
 

@@ -14,7 +14,7 @@ use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT, AUTHORIZATION, RANGE};
 
 const BASE_URL: &str = "https://api.music.yandex.net";
 const SECRET: &str = "kzqU4XhfCaY6B6JTHODeq5";
-const YANDEX_USER_AGENT: &str = "YandexMusicDesktopAppWindows/5.20.2";
+const YANDEX_USER_AGENT: &str = "YandexMusicDesktopAppWindows/5.23.2";
 
 type HmacSha256 = Hmac<Sha256>;
 
