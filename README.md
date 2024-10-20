@@ -7,9 +7,9 @@ The client can be open during extraction but doesn't have to be.
 
 # Windows
 1. Install the official [Yandex Music client](https://music.yandex.ru/download/) and login.
-2. Double-click token_extractor.exe.
+2. Double-click extract_token.exe.
 
 # Linux
 1. Install [cucumber's Yandex Music client](https://github.com/cucumber-sp/yandex-music-linux/releases) and login.
 2. `chmod +x token_extractor_amd64`
-3. `./token_extractor_amd64`
+3. `./extract_token_amd64`
