@@ -4,6 +4,7 @@ use serde::Deserialize;
 #[serde(rename_all = "camelCase")]
 pub struct UserInfoResult {
     pub has_plus: bool,
+    pub login: String,
 }
 
 #[derive(Deserialize)]
@@ -15,6 +16,19 @@ pub struct UserInfo {
 #[serde(rename_all = "camelCase")]
 pub struct LyricsInfo {
     pub has_available_sync_lyrics: bool,
+    pub has_available_text_lyrics: bool,
+}
+
+impl LyricsInfo {
+    pub fn check_availibility(&self) -> Option<bool> {
+        if self.has_available_sync_lyrics {
+            Some(true)
+        } else if self.has_available_text_lyrics {
+            Some(false)
+        } else {
+            None
+        }
+    }
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -48,7 +62,7 @@ pub struct AlbumResult {
     pub labels: Vec<Label>,
     pub version: Option<String>,
     pub volumes: Vec<Vec<Volume>>,
-    pub year: u16,
+    pub year: Option<u16>,
 }
 
 #[derive(Deserialize)]
@@ -152,7 +166,7 @@ pub struct AlbumResultInPlaylist {
     pub genre: Option<String>,
     pub labels: Vec<Label>,
     pub version: Option<String>,
-    pub year: u16,
+    pub year: Option<u16>,
 }
 
 #[derive(Deserialize)]
@@ -193,4 +207,26 @@ pub struct ArtistMetaResult {
 #[derive(Deserialize)]
 pub struct ArtistMeta {
     pub result: ArtistMetaResult,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Favourites {
+    pub playlist_uuid: String,
+}
+
+#[derive(Deserialize)]
+pub struct UserFavouritesMeta {
+    pub favorites: Favourites,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OtherUserPlaylistMetaResult {
+    pub playlist_uuid: String,
+    pub visibility: String,
+}
+
+#[derive(Deserialize)]
+pub struct OtherUserPlaylistMeta {
+    pub result: OtherUserPlaylistMetaResult,
 }

@@ -20,6 +20,7 @@ type HmacSha256 = Hmac<Sha256>;
 
 pub struct YandexMusicClient {
     c: Client,
+    pub login: String,
     token: String,
 }
 
@@ -36,6 +37,7 @@ impl YandexMusicClient {
         let mut yandex_client = YandexMusicClient {
             c,
             token: format!("OAuth {}", token),
+            login: String::new(),
         };
 
         let user_info = yandex_client.get_user_info()?;
@@ -43,6 +45,7 @@ impl YandexMusicClient {
             return Err("active plus subscription required".into());
         }
 
+        yandex_client.login = user_info.login;
         Ok(yandex_client)
     }
 
@@ -92,15 +95,17 @@ impl YandexMusicClient {
         Ok(base64_encoded)
     }
 
-    pub fn get_lyrics_meta(&mut self, track_id: &str) -> Result<LyricsResult, Box<dyn Error>> {
+    pub fn get_lyrics_meta(&mut self, track_id: &str, timed: bool) -> Result<LyricsResult, Box<dyn Error>> {
         let url = format!("{}/tracks/{}/lyrics", BASE_URL, track_id);
         let ts = self.get_unix_timestamp()?;
+
+        let format = if timed { "LRC" } else { "TEXT" };
         let signature = self.create_lyrics_signature(&ts, track_id)?;
 
         let params: HashMap<&str, &str> = HashMap::from([
             ("timeStamp", ts.as_str()),
             ("trackId", track_id),
-            ("format", "LRC"),
+            ("format", format),
             ("sign", &signature),
         ]);
 
@@ -175,6 +180,19 @@ impl YandexMusicClient {
         Ok(meta.result)
     }
 
+    pub fn get_other_user_playlist_meta(&mut self, username: &str, id: &str) -> Result<OtherUserPlaylistMetaResult, Box<dyn Error>> {
+        let url = format!("{}/users/{}/playlists/{}", BASE_URL, username, id);
+
+        let resp = self.c.get(url)
+            .header(AUTHORIZATION, &self.token)
+            .header("X-Yandex-Music-Client", YANDEX_USER_AGENT)
+            .send()?;
+
+        resp.error_for_status_ref()?;
+        let meta: OtherUserPlaylistMeta = resp.json()?;
+        Ok(meta.result)
+    }
+
     pub fn get_playlist_meta(&mut self, uuid: &str) -> Result<PlaylistMetaResult, Box<dyn Error>> {
         let url = format!("{}/playlist/{}", BASE_URL, uuid);
 
@@ -201,6 +219,19 @@ impl YandexMusicClient {
 
         let meta: ArtistMeta = resp.json()?;
         Ok(meta.result)
+    }
+
+    pub fn get_user_favourites_meta(&mut self) -> Result<UserFavouritesMeta, Box<dyn Error>> {
+        let url = format!("{}/landing/block/likes-and-history", BASE_URL);
+
+        let resp = self.c.get(url)
+            .header(AUTHORIZATION, &self.token)
+            .header("X-Yandex-Music-Client", YANDEX_USER_AGENT)
+            .send()?;
+
+        resp.error_for_status_ref()?;
+        let meta: UserFavouritesMeta = resp.json()?;
+        Ok(meta)
     }
 
     pub fn get_file_resp(&mut self, url: &str, with_range: bool) -> Result<ReqwestResp, ReqwestErr> {
