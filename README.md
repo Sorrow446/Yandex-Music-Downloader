@@ -1,6 +1,6 @@
 # Yandex-Token-Extractor
 Token extractor for use with my Yandex Music downloader.    
-[Pre-compiled binaries](https://github.com/Sorrow446/Yandex-Music-Downloader/releases)
+[Pre-compiled binaries](https://github.com/Sorrow446/Yandex-Music-Downloader/releases/tag/v0.1.1-token-extractor)
 
 ## Usage
 The client can be open during extraction but doesn't have to be.
