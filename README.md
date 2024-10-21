@@ -8,27 +8,23 @@ Input token into config file (config.toml).
 Configure any other options if needed.
 |Option|Info|
 | --- | --- |
-|token|Required to auth.
-|format|Track download quality. 1 = AAC 64, 2 = AAC 192, 3 = AAC 256 / MP3 320, 4 = FLAC.
-|out_path|Where to download to. Path will be made if it doesn't already exist.
-|keep_covers|Keep covers in album folder.
-|write_covers|Write covers to tracks.
-|sleep|Sleep between each track processing to prevent potential rate-limiting.
-|original_covers|Get original covers for tracks; may be large sometimes. true = orignal, false = 1000x1000
+|token|Required to auth.|
+|format|Track download quality. 1 = AAC 64, 2 = AAC 192, 3 = AAC 256 / MP3 320, 4 = FLAC.|
+|out_path|Where to download to. Path will be made if it doesn't already exist.|
+|keep_covers|Keep covers in album folder.|
+|write_covers|Write covers to tracks.|
+|sleep|Sleep between each track processing to prevent potential rate-limiting.|
+|original_covers|Get original covers for tracks; may be large sometimes. true = orignal, false = 1000x1000|
 
 ## Token Acquisition
 **Plus subscription required.**    
-Web tokens won't work. It must be from one of the following:
 
-### Windows or unofficial Linux Yandex Music app   
-https://github.com/Sorrow446/Yandex-Music-Downloader/tree/token_extractor
+|Type|Lossless|Lifetime|How to get|
+| --- | --- | --- | --- |
+|Desktop|yes|1 year|https://github.com/Sorrow446/Yandex-Music-Downloader/tree/token_extractor|
+|Android|yes|1 year|Sniff the Android app; look for the Authorization header. `OAuth xxxx...`|
+|Web|no|1 month?|https://yandex-music.readthedocs.io/en/main/token.html|
 
-### Android  
-- Sniff the Yandex Music app on your Android device or emulator.
-
-Look for the Authorization header. `OAuth xxxx...`
-
-They last for about a year.
 
 ## Supported Media
 Wrap any URLs that contain params in double quotes if running on Windows.
@@ -38,7 +34,10 @@ Wrap any URLs that contain params in double quotes if running on Windows.
 |Album|`https://music.yandex.ru/album/33134482`
 |Artist albums|`https://music.yandex.ru/artist/9838127`, `https://music.yandex.ru/artist/9838127/albums`
 |Track|`https://music.yandex.ru/album/2955514/track/25128596`
-|User playlist (own only)|`https://music.yandex.ru/users/user@gmail.com/playlists/1000`
+|User playlist|`https://music.yandex.ru/users/user@gmail.com/playlists/1000`
+|User favourites|`https://music.yandex.ru/users/user@gmail.com/playlists/3`
+
+Other users' favourites and playlists are also supported, but they must be set to public.
 
 ## Usage
 Args take priority over the config file.
