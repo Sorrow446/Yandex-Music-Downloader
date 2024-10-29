@@ -166,14 +166,14 @@ fn get_lyrics_text(c: &mut YandexMusicClient, track_id: &str, timed: bool) -> Re
     Ok(lyrics)
 }
 
-fn parse_album_meta_playlist(meta: &AlbumResultInPlaylist, track_total: u16, cover_data: Vec<u8>) -> ParsedAlbumMeta {
+fn parse_album_meta_playlist(meta: &AlbumResultInPlaylist, track_total: u16) -> ParsedAlbumMeta {
     let album_title = parse_title(&meta.title, meta.version.clone());
 
     ParsedAlbumMeta {
         album_artist: parse_artists(&meta.artists),
         album_title,
         artist: String::new(),
-        cover_data,
+        cover_data: Vec::new(),
         genre: meta.genre.clone(),
         lyrics_avail: None,
         is_track_only: false,
@@ -192,7 +192,9 @@ fn parse_track_meta(meta: &mut ParsedAlbumMeta, track_meta: &Volume, track_num: 
     meta.artist =  parse_artists(&track_meta.artists);
     meta.title = title;
     meta.track_num = track_num;
-    meta.lyrics_avail = track_meta.lyrics_info.check_availibility();
+    if let Some(lyrics) = &track_meta.lyrics_info {
+        meta.lyrics_avail = lyrics.check_availibility();
+    }
     meta.is_track_only = is_track_only;
 }
 
@@ -202,7 +204,10 @@ fn parse_track_meta_playlist(meta: &mut ParsedAlbumMeta, track_meta: &PlaylistTr
     meta.artist =  parse_artists(&track_meta.artists);
     meta.title = title;
     meta.track_num = track_num;
-    meta.lyrics_avail = track_meta.lyrics_info.check_availibility();
+    if let Some(lyrics) = &track_meta.lyrics_info {
+        meta.lyrics_avail = lyrics.check_availibility();
+    }
+
 }
 
 fn get_cover_data(c: &mut YandexMusicClient, url: &str, original: bool) -> Result<Vec<u8>, Box<ReqwestErr>> {
@@ -476,18 +481,24 @@ fn process_album(c: &mut YandexMusicClient, config: &Config, album_id: &str, tra
 
     fs::create_dir_all(&album_path)?;
 
-    let cover_data = get_cover_data(c, &meta.cover_uri, config.get_original_covers)?;
+    if let Some(uri) = &meta.cover_uri {
+        let cover_data = get_cover_data(c, uri, config.get_original_covers)?;
 
-    if config.keep_covers {
-        write_cover(&cover_data, &album_path)?;
+        if config.keep_covers {
+            write_cover(&cover_data, &album_path)?;
+        }
+
+        if config.write_covers {
+            parsed_meta.cover_data = cover_data.clone();
+        }
     }
 
-    if config.write_covers {
-        parsed_meta.cover_data = cover_data.clone();
-    }
 
     if is_track_only {
-        meta.volumes[0].retain(|track| track.id == track_id);
+        for volume in &mut meta.volumes {
+            volume.retain(|track| track.id == track_id);
+        }
+
         if meta.volumes[0].len() < 1 {
             return Err("track not found in album".into())
         }
@@ -563,7 +574,13 @@ fn process_user_playlist(c: &mut YandexMusicClient, config: &Config, login: &str
 
     for (mut track_num, t) in meta.tracks.into_iter().enumerate() {
         let track = t.track;
+        if track.track_source.to_lowercase() != "own" {
+            println!("Skipped user-uploaded track.");
+            continue;
+        }
+
         track_num += 1;
+
         if !track.available {
             println!("Track is unavailable.");
             continue;
@@ -574,8 +591,11 @@ fn process_user_playlist(c: &mut YandexMusicClient, config: &Config, login: &str
             continue;
         }
 
-        let cover_data = get_cover_data(c, &track.cover_uri, config.get_original_covers)?;
-        let mut parsed_meta = parse_album_meta_playlist(&track.albums[0], track_total, cover_data);
+        let mut parsed_meta = parse_album_meta_playlist(&track.albums[0], track_total);
+        if let Some(uri) = &track.cover_uri {
+            let cover_data = get_cover_data(c, uri, config.get_original_covers)?;
+            parsed_meta.cover_data = cover_data;
+        }
 
         parse_track_meta_playlist(&mut parsed_meta, &track, track_num as u16);
         if let Err(e) = process_track(c, &track.id, &mut parsed_meta, &config, &plist_path) {
