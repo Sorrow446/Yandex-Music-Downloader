@@ -424,13 +424,14 @@ fn write_timed_lyrics(text: &str, out_path: &PathBuf) -> Result<(), Box<dyn Erro
 }
 
 fn parse_track_template(template: &str, meta: &ParsedAlbumMeta, padding: String) ->  Result<String, RegexError> {
+    let artist = utils::sanitise(&meta.artist)?;
     let title = utils::sanitise(&meta.title)?;
 
     let m: HashMap<&str, String> = HashMap::from([
         ("track_num", meta.track_num.to_string()),
         ("track_num_pad", padding.to_string()),
         ("title", title),
-        ("artist", meta.artist.clone()),
+        ("artist", artist),
     ]);
 
     let mut result = template.to_string();
