@@ -32,7 +32,6 @@ pub struct Args {
 
 #[derive(Deserialize)]
 pub struct Config {
-    // #[serde(skip_deserializing)]
     pub format: u8,
     #[serde(skip_deserializing)]
     pub format_str: String,
@@ -45,6 +44,7 @@ pub struct Config {
     pub urls: Vec<String>,
     pub write_covers: bool,
     pub write_lyrics: bool,
+    pub track_template: String,
 }
 
 pub struct ParsedAlbumMeta {
@@ -57,6 +57,7 @@ pub struct ParsedAlbumMeta {
     pub is_track_only: bool,
     pub label: String,
     pub title: String,
+    pub timed_lyrics: Option<String>,
     pub untimed_lyrics: Option<String>,
     pub track_num: u16,
     pub track_total: u16,

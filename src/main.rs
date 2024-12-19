@@ -3,8 +3,9 @@ use std::fs;
 use std::fs::File;
 use std::io::{BufWriter, Read, Write};
 use std::path::PathBuf;
-use regex::Regex;
+use regex::{Regex, Error as RegexError};
 use std::{thread, time};
+use std::collections::HashMap;
 
 use clap::Parser;
 use reqwest::Error as ReqwestErr;
@@ -61,6 +62,11 @@ fn parse_config() -> Result<Config, Box<dyn Error>> {
     if config.token.trim().is_empty() {
         return Err("token can't be empty".into())
     }
+
+    if config.track_template.trim().is_empty() {
+        config.track_template = "{track_num_pad}. {title}".to_string();
+    }
+
 
     let args = Args::parse();
     let proc_urls = utils::process_urls(&args.urls)?;
@@ -153,6 +159,7 @@ fn parse_album_meta(meta: &AlbumResult, track_total: u16) -> ParsedAlbumMeta {
         track_num: 0,
         track_total,
         label: parse_labels(&meta.labels),
+        timed_lyrics: None,
         untimed_lyrics: None,
         year: meta.year,
     }
@@ -180,6 +187,7 @@ fn parse_album_meta_playlist(meta: &AlbumResultInPlaylist, track_total: u16) -> 
         title: String::new(),
         track_num: 0,
         track_total,
+        timed_lyrics: None,
         untimed_lyrics: None,
         label: parse_labels(&meta.labels),
         year: meta.year,
@@ -314,6 +322,10 @@ fn write_flac_tags(track_path: &PathBuf, meta: &ParsedAlbumMeta) -> Result<(), F
     }
 
     if let Some(lyrics) = &meta.untimed_lyrics {
+        set_vorbis(&mut tag, "UNSYNCEDLYRICS", lyrics);
+    }
+
+    if let Some(lyrics) = &meta.timed_lyrics {
         set_vorbis(&mut tag, "LYRICS", lyrics);
     }
 
@@ -354,6 +366,11 @@ fn write_mp3_tags(track_path: &PathBuf, meta: &ParsedAlbumMeta) -> Result<(), ID
         tag.set_text("USLT", lyrics);
     }
 
+    if let Some(lyrics) = &meta.timed_lyrics {
+        tag.set_text("SYLT", lyrics);
+    }
+
+
     tag.write_to_path(track_path, Version::Id3v24)?;
     Ok(())
 }
@@ -380,7 +397,9 @@ fn write_mp4_tags(track_path: &PathBuf, meta: &ParsedAlbumMeta) -> Result<(), MP
         tag.set_year(year.to_string());
     }
 
-    if let Some(lyrics) = &meta.untimed_lyrics {
+    if let Some(lyrics) = &meta.timed_lyrics {
+        tag.set_lyrics(lyrics);
+    } else if let Some(lyrics) = &meta.untimed_lyrics {
         tag.set_lyrics(lyrics);
     }
 
@@ -404,6 +423,24 @@ fn write_timed_lyrics(text: &str, out_path: &PathBuf) -> Result<(), Box<dyn Erro
     Ok(())
 }
 
+fn parse_track_template(template: &str, meta: &ParsedAlbumMeta, padding: String) ->  Result<String, RegexError> {
+    let title = utils::sanitise(&meta.title)?;
+
+    let m: HashMap<&str, String> = HashMap::from([
+        ("track_num", meta.track_num.to_string()),
+        ("track_num_pad", padding.to_string()),
+        ("title", title),
+        ("artist", meta.artist.clone()),
+    ]);
+
+    let mut result = template.to_string();
+    for (key, value) in m {
+        let to_replace = format!("{{{}}}", key);
+        result = result.replace(&to_replace, &value);
+    }
+    Ok(result)
+}
+
 fn process_track(c: &mut YandexMusicClient, track_id: &str, meta: &mut ParsedAlbumMeta, config: &Config, album_path: &PathBuf) -> Result<(), Box<dyn Error>> {
     let info = c.get_file_info(track_id, &config.format_str)?;
     let (specs, file_ext) = parse_specs(&info.codec, info.bitrate)
@@ -416,9 +453,7 @@ fn process_track(c: &mut YandexMusicClient, track_id: &str, meta: &mut ParsedAlb
     }
 
     let padding = utils::format_track_number(meta.track_num, meta.track_total);
-    let san_track_fname = format!(
-        "{}. {}", padding, utils::sanitise(&meta.title)?
-    );
+    let san_track_fname = parse_track_template(&config.track_template, &meta, padding.clone())?;
 
     let mut track_path_no_ext = album_path.join(san_track_fname);
     let mut track_path = utils::append_to_path_buf(&track_path_no_ext, &file_ext);
@@ -439,18 +474,17 @@ fn process_track(c: &mut YandexMusicClient, track_id: &str, meta: &mut ParsedAlb
     download_track(c, &info.url, &track_path_incomp)?;
     fs::rename(&track_path_incomp, &track_path)?;
 
-
-    if config.write_lyrics {
-        if let Some(lyrics) = meta.lyrics_avail {
-            let lyrics_text = get_lyrics_text(c, track_id, lyrics)?;
-            if lyrics {
-                println!("Writing timed lyrics...");
+    if let Some(lyrics) = meta.lyrics_avail {
+        let lyrics_text = get_lyrics_text(c, track_id, lyrics)?;
+        if lyrics {
+            if config.write_lyrics {
                 let lyrics_path = utils::append_to_path_buf(&track_path_no_ext, ".lrc");
+                println!("Writing timed lyrics file...");
                 write_timed_lyrics(&lyrics_text, &lyrics_path)?;
-            } else {
-                println!("Writing untimed lyrics...");
-                meta.untimed_lyrics = Some(lyrics_text);
             }
+            meta.timed_lyrics = Some(lyrics_text);
+        } else {
+            meta.untimed_lyrics = Some(lyrics_text);
         }
     }
 
