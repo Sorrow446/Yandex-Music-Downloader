@@ -6,3 +6,4 @@ sleep = false
 write_covers = true
 get_original_covers = false
 write_lyrics = true
+track_template = "{track_num_pad}. {title}"
