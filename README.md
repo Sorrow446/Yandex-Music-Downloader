@@ -15,6 +15,7 @@ Configure any other options if needed.
 |write_covers|Write covers to tracks.|
 |sleep|Sleep between each track processing to prevent potential rate-limiting.|
 |original_covers|Get original covers for tracks; may be large sometimes. true = orignal, false = 1000x1000|
+|track_template|Track filename naming template. Vars: artist, title, track_num, track_num_pad
 
 ## Token Acquisition
 **Plus subscription required.**    
