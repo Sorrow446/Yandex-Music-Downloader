@@ -90,12 +90,11 @@ pub fn file_exists(file_path: &PathBuf) -> Result<bool, IoError> {
 pub fn sanitise(filename: &str, trim_periods: bool) -> Result<String, RegexError> {
     let re = Regex::new(SAN_REGEX_STRING)?;
     let sanitised = re.replace_all(filename, "_");
-    let trimmed = sanitised.trim();
 
     let result = if trim_periods {
-        trimmed.trim_end_matches('.')
+        sanitised.trim().trim_end_matches('.')
     } else {
-        trimmed.trim_start()
+        sanitised.trim_start()
     };
 
     Ok(result.to_string())
