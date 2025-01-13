@@ -87,10 +87,20 @@ pub fn file_exists(file_path: &PathBuf) -> Result<bool, IoError> {
     }
 }
 
-pub fn sanitise(filename: &str) -> Result<String, RegexError> {
+pub fn sanitise(filename: &str, trim_periods: bool) -> Result<String, RegexError> {
     let re = Regex::new(SAN_REGEX_STRING)?;
-    Ok(re.replace_all(filename, "_").to_string())
+    let sanitised = re.replace_all(filename, "_");
+    let trimmed = sanitised.trim();
+
+    let result = if trim_periods {
+        trimmed.trim_end_matches('.')
+    } else {
+        trimmed.trim_start()
+    };
+
+    Ok(result.to_string())
 }
+
 
 pub fn format_track_number(track_num: u16, track_total: u16) -> String {
     let padding = track_total.to_string().len();

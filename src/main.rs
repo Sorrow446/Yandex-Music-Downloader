@@ -424,14 +424,11 @@ fn write_timed_lyrics(text: &str, out_path: &PathBuf) -> Result<(), Box<dyn Erro
 }
 
 fn parse_track_template(template: &str, meta: &ParsedAlbumMeta, padding: String) ->  Result<String, RegexError> {
-    let artist = utils::sanitise(&meta.artist)?;
-    let title = utils::sanitise(&meta.title)?;
-
     let m: HashMap<&str, String> = HashMap::from([
         ("track_num", meta.track_num.to_string()),
         ("track_num_pad", padding.to_string()),
-        ("title", title),
-        ("artist", artist),
+        ("title", meta.title.clone()),
+        ("artist", meta.artist.clone()),
     ]);
 
     let mut result = template.to_string();
@@ -439,6 +436,8 @@ fn parse_track_template(template: &str, meta: &ParsedAlbumMeta, padding: String)
         let to_replace = format!("{{{}}}", key);
         result = result.replace(&to_replace, &value);
     }
+
+    result = utils::sanitise(&result, false)?;
     Ok(result)
 }
 
@@ -509,7 +508,7 @@ fn process_album(c: &mut YandexMusicClient, config: &Config, album_id: &str, tra
     let album_folder = format!("{} - {}", parsed_meta.album_artist, parsed_meta.album_title);
     println!("{}", album_folder);
 
-    let san_album_folder = utils::sanitise(&album_folder)?;
+    let san_album_folder = utils::sanitise(&album_folder, true)?;
     let album_path = artist_path
         .unwrap_or(&config.out_path)
         .join(san_album_folder);
@@ -601,7 +600,7 @@ fn process_user_playlist(c: &mut YandexMusicClient, config: &Config, login: &str
     let plist_folder = format!("{} - {}", meta.owner.login, meta.title);
     println!("{}", plist_folder);
 
-    let san_album_folder = utils::sanitise(&plist_folder)?;
+    let san_album_folder = utils::sanitise(&plist_folder, true)?;
     let plist_path = config.out_path.join(san_album_folder);
     fs::create_dir_all(&plist_path)?;
 
@@ -646,7 +645,7 @@ fn process_artist_albums(c: &mut YandexMusicClient, config: &Config, artist_id: 
     let artist_name = meta.artist.name;
     println!("{}", artist_name);
 
-    let san_artist_folder = utils::sanitise(&artist_name)?;
+    let san_artist_folder = utils::sanitise(&artist_name, true)?;
     let artist_path = config.out_path.join(&san_artist_folder);
     let album_total = meta.albums.len();
     if album_total < 1 {
