@@ -15,6 +15,13 @@ pub fn get_exe_path() -> Result<PathBuf, Box<dyn Error>> {
     Ok(exe_path_buf)
 }
 
+pub fn get_ffmpeg_path() -> Result<PathBuf, Box<dyn Error>> {
+    let p = PathBuf::from("./");
+    let exe_path = get_exe_path()?;
+    let ffmpeg_path = p.join(exe_path).join("ffmpeg");
+    Ok(ffmpeg_path)
+}
+
 fn contains(lines: &[String], value: &str) -> bool {
     lines.iter().any(|s| s.to_lowercase() == value.to_lowercase())
 }

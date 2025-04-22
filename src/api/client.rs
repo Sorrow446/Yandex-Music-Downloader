@@ -122,7 +122,7 @@ impl YandexMusicClient {
 
     // :)
     fn create_signature(&mut self, ts: &str, track_id: &str, quality: &str) -> Result<String, CryptoInvalidLength> {
-        let msg = format!("{}{}{}flacaache-aacmp3raw", ts, track_id, quality);
+        let msg = format!("{}{}{}flacaache-aacmp3flac-mp4aac-mp4he-aac-mp4encraw", ts, track_id, quality);
 
         let mut mac = HmacSha256::new_from_slice(SECRET.as_bytes())?;
         mac.update(msg.as_bytes());
@@ -144,8 +144,8 @@ impl YandexMusicClient {
             ("ts", ts.as_str()),
             ("trackId", track_id),
             ("quality", quality),
-            ("codecs", "flac,aac,he-aac,mp3"),
-            ("transports", "raw"),
+            ("codecs", "flac,aac,he-aac,mp3,flac-mp4,aac-mp4,he-aac-mp4"),
+            ("transports", "encraw"),
             ("sign", &signature),
         ]);
 

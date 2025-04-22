@@ -6,9 +6,12 @@ use std::path::PathBuf;
 use regex::{Regex, Error as RegexError};
 use std::{thread, time};
 use std::collections::HashMap;
+use std::process::{Command, Stdio};
 
+use aes::Aes128;
 use clap::Parser;
 use reqwest::Error as ReqwestErr;
+use ctr::cipher::{KeyIvInit, StreamCipher};
 use indicatif::{ProgressBar, ProgressStyle};
 use metaflac::{Tag as FlacTag, Error as FlacError};
 use metaflac::block::PictureType::CoverFront as FLACCoverFront;
@@ -39,6 +42,8 @@ const REGEX_STRINGS: [&str; 3] = [
     r#"^https://music\.yandex\.ru/artist/(\d+)(?:/albums)?(?:\?.+)?$"#,
 ];
 
+type Aes128Ctr = ctr::Ctr128BE<Aes128>; // AES-128 in CTR mode
+
 fn read_config() -> Result<Config, Box<dyn Error>> {
     let exe_path = utils::get_exe_path()?;
     let config_path = exe_path.join("config.toml");
@@ -63,10 +68,13 @@ fn parse_config() -> Result<Config, Box<dyn Error>> {
         return Err("token can't be empty".into())
     }
 
+    if config.album_template.trim().is_empty() {
+        config.album_template = "{album_artist} - {album_title}".to_string();
+    }
+
     if config.track_template.trim().is_empty() {
         config.track_template = "{track_num_pad}. {title}".to_string();
     }
-
 
     let args = Args::parse();
     let proc_urls = utils::process_urls(&args.urls)?;
@@ -90,6 +98,10 @@ fn parse_config() -> Result<Config, Box<dyn Error>> {
     if args.get_original_covers {
         config.get_original_covers = args.get_original_covers;
     }
+
+    let ffmpeg_path = utils::get_ffmpeg_path()?;
+
+    config.ffmpeg_path = if config.use_ffmpeg_env_var { PathBuf::from("ffmpeg") } else { ffmpeg_path };
 
     config.format = args.format.unwrap_or(config.format);
     config.out_path = args.out_path.unwrap_or(config.out_path);
@@ -238,15 +250,15 @@ fn write_cover(cover_data: &[u8], album_path: &PathBuf) -> Result<(), Box<dyn Er
 
 fn parse_specs(codec: &str, bitrate: u16) -> Option<(String, String)> {
     match codec {
-        "flac" => Some((
+        "flac-mp4" => Some((
             "FLAC".to_string(),
             ".flac".to_string()
         )),
-        "mp3" => Some((
+        "mp3-mp4" => Some((
             format!("{} Kbps MP3", bitrate),
             ".mp3".to_string()
         )),
-        "aac" | "he-aac" => Some((
+        "aac-mp4" | "he-aac-mp4" => Some((
             format!("{} Kbps AAC", bitrate),
             ".m4a".to_string()
         )),
@@ -409,9 +421,9 @@ fn write_mp4_tags(track_path: &PathBuf, meta: &ParsedAlbumMeta) -> Result<(), MP
 
 fn write_tags(track_path: &PathBuf, codec: &str, meta: &ParsedAlbumMeta) -> Result<(), Box<dyn Error>> {
     match codec {
-        "flac" => write_flac_tags(track_path, meta)?,
-        "mp3" => write_mp3_tags(track_path, meta)?,
-        "aac" | "he-aac" => write_mp4_tags(track_path, meta)?,
+        "flac-mp4" => write_flac_tags(track_path, meta)?,
+        "mp3-mp4" => write_mp3_tags(track_path, meta)?,
+        "aac-mp4" | "he-aac-mp4" => write_mp4_tags(track_path, meta)?,
         _ => {},
     }
     Ok(())
@@ -423,6 +435,29 @@ fn write_timed_lyrics(text: &str, out_path: &PathBuf) -> Result<(), Box<dyn Erro
     Ok(())
 }
 
+fn parse_template(template: &str, replacements: HashMap<&str, String>) -> Result<String, RegexError> {
+    let mut result = template.to_string();
+
+    for (key, value) in replacements {
+        let to_replace = format!("{{{}}}", key);
+        result = result.replace(&to_replace, &value);
+    }
+
+    utils::sanitise(&result, false)
+}
+
+fn parse_album_template(template: &str, meta: &ParsedAlbumMeta) ->  Result<String, RegexError> {
+    let m: HashMap<&str, String> = HashMap::from([
+        ("album_artist", meta.album_artist.clone()),
+        ("album_title", meta.album_title.clone()),
+        ("label", meta.label.clone()),
+        ("year", meta.year.map(|y| y.to_string()).unwrap_or_default()),
+    ]);
+
+    let result = parse_template(template, m)?;
+    Ok(result)
+}
+
 fn parse_track_template(template: &str, meta: &ParsedAlbumMeta, padding: String) ->  Result<String, RegexError> {
     let m: HashMap<&str, String> = HashMap::from([
         ("track_num", meta.track_num.to_string()),
@@ -431,14 +466,41 @@ fn parse_track_template(template: &str, meta: &ParsedAlbumMeta, padding: String)
         ("artist", meta.artist.clone()),
     ]);
 
-    let mut result = template.to_string();
-    for (key, value) in m {
-        let to_replace = format!("{{{}}}", key);
-        result = result.replace(&to_replace, &value);
+    let result = parse_template(template, m)?;
+    Ok(result)
+}
+
+fn decrypt_track(enc_path: &PathBuf, dec_path: &PathBuf, key: &str) -> Result<(), Box<dyn Error>> {
+    let mut enc_data = fs::read(enc_path)?;
+
+    let key_vec = hex::decode(key)?;
+    let key: [u8; 16] = key_vec.try_into().map_err(|_| "key must be 16 bytes")?;
+
+    let nonce = [0u8; 16];
+    let mut cipher = Aes128Ctr::new(&key.into(), &nonce.into());
+
+    cipher.apply_keystream(&mut enc_data);
+    fs::write(dec_path, enc_data)?;
+    Ok(())
+}
+
+fn mux(in_path: &PathBuf, out_path: &PathBuf, ffmpeg_path: &PathBuf ) -> Result<(), Box<dyn Error>> {
+    let cmd = Command::new(ffmpeg_path)
+        .arg("-i")
+        .arg(in_path)
+        .arg("-c:a")
+        .arg("copy")
+        .arg(out_path)
+        .stderr(Stdio::piped())
+        .output()?;
+
+    if !cmd.status.success() {
+        let err_output = String::from_utf8_lossy(&cmd.stderr);
+        let err_str = format!("ffmpeg failed: {}", err_output);
+        return Err(err_str.into());
     }
 
-    result = utils::sanitise(&result, false)?;
-    Ok(result)
+    Ok(())
 }
 
 fn process_track(c: &mut YandexMusicClient, track_id: &str, meta: &mut ParsedAlbumMeta, config: &Config, album_path: &PathBuf) -> Result<(), Box<dyn Error>> {
@@ -458,21 +520,32 @@ fn process_track(c: &mut YandexMusicClient, track_id: &str, meta: &mut ParsedAlb
     let mut track_path_no_ext = album_path.join(san_track_fname);
     let mut track_path = utils::append_to_path_buf(&track_path_no_ext, &file_ext);
 
-
-    if IS_WINDOWS && track_path.to_string_lossy().len() > 255 {
-        track_path_no_ext = album_path.join(padding);
-        track_path = utils::append_to_path_buf(&track_path_no_ext, &file_ext);
-        println!("Track exceeds max path length; will be renamed like <track_num>.<ext> instead.");
-    }
-
-    if utils::file_exists(&track_path)? {
-        println!("Track already exists locally.");
-        return Ok(());
+    match utils::file_exists(&track_path) {
+        Ok(true) => {
+            println!("Track already exists locally.");
+            return Ok(());
+        },
+        Ok(false) => {},
+        Err(err) if IS_WINDOWS && err.raw_os_error() == Some(206) => {
+            track_path_no_ext = album_path.join(padding);
+            track_path = utils::append_to_path_buf(&track_path_no_ext, &file_ext);
+            println!("Track exceeds max path length; will be renamed like <track_num>.<ext> instead.");
+        }
+        Err(err) => return Err(err.into()),
     }
 
     let track_path_incomp = utils::append_to_path_buf(&track_path_no_ext, ".incomplete");
+    let track_path_incomp_dec = utils::append_to_path_buf(&track_path_no_ext, ".incomplete_dec.mp4");
     download_track(c, &info.url, &track_path_incomp)?;
-    fs::rename(&track_path_incomp, &track_path)?;
+
+    println!("Decrypting...");
+    decrypt_track(&track_path_incomp, &track_path_incomp_dec, &info.key)?;
+
+    println!("Muxing...");
+    mux(&track_path_incomp_dec, &track_path, &config.ffmpeg_path)?;
+
+    fs::remove_file(track_path_incomp)?;
+    fs::remove_file(track_path_incomp_dec)?;
 
     if let Some(lyrics) = meta.lyrics_avail {
         let lyrics_text = get_lyrics_text(c, track_id, lyrics)?;
@@ -505,10 +578,12 @@ fn process_album(c: &mut YandexMusicClient, config: &Config, album_id: &str, tra
     let track_total: usize = meta.volumes.iter().map(|v| v.len()).sum();
     let mut parsed_meta = parse_album_meta(&meta, track_total as u16);
 
-    let album_folder = format!("{} - {}", parsed_meta.album_artist, parsed_meta.album_title);
-    println!("{}", album_folder);
+    let album_print = format!("{} - {}", parsed_meta.album_artist, parsed_meta.album_title);
 
-    let san_album_folder = utils::sanitise(&album_folder, true)?;
+    let san_album_folder = parse_album_template(&config.album_template, &parsed_meta)?;
+
+    println!("{}", album_print);
+
     let album_path = artist_path
         .unwrap_or(&config.out_path)
         .join(san_album_folder);

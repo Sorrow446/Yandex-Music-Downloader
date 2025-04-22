@@ -84,6 +84,7 @@ pub struct LyricsMeta {
 #[derive(Deserialize)]
 pub struct DownloadInfo {
     // pub quality: String,
+    pub key: String,
     pub url: String,
     pub bitrate: u16,
     pub codec: String,
