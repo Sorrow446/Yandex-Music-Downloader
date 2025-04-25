@@ -40,7 +40,7 @@ fn get_db_path() -> Result<PathBuf, Box<dyn Error>> {
 #[cfg(target_os = "linux")]
 fn get_db_path() -> Result<PathBuf, Box<dyn Error>> {
     let home_path: PathBuf = env::var("HOME")?.into();
-    let path = home_path.join(".config").join("YandexMusic/Local Storage/leveldb/");
+    let path = home_path.join(".config").join("yandex-music/Local Storage/leveldb/");
     Ok(path)
 }
 
