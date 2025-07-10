@@ -37,9 +37,9 @@ const IS_WINDOWS: bool = true;
 const IS_WINDOWS: bool = false;
 
 const REGEX_STRINGS: [&str; 3] = [
-    r#"^https://music\.yandex\.(?:by|kz|ru)/album/(\d+)(?:/track/(\d+)(?:\?.+)?)?$"#,
-    r#"^https://music\.yandex\.(?:by|kz|ru)/users/(.+)/playlists/(\d+)(?:\?.+)?$"#,
-    r#"^https://music\.yandex\.(?:by|kz|ru)/artist/(\d+)(?:/albums)?(?:\?.+)?$"#,
+    r#"^https://music\.yandex\.ru/album/(\d+)(?:/track/(\d+)(?:\?.+)?)?$"#,
+    r#"^https://music\.yandex\.ru/users/(.+)/playlists/(\d+)(?:\?.+)?$"#,
+    r#"^https://music\.yandex\.ru/artist/(\d+)(?:/albums)?(?:\?.+)?$"#,
 ];
 
 type Aes128Ctr = ctr::Ctr128BE<Aes128>; // AES-128 in CTR mode
@@ -250,15 +250,15 @@ fn write_cover(cover_data: &[u8], album_path: &PathBuf) -> Result<(), Box<dyn Er
 
 fn parse_specs(codec: &str, bitrate: u16) -> Option<(String, String)> {
     match codec {
-        "flac-mp4" => Some((
+        "flac" | "flac-mp4" => Some((
             "FLAC".to_string(),
             ".flac".to_string()
         )),
-        "mp3-mp4" => Some((
+        "mp3" | "mp3-mp4" => Some((
             format!("{} Kbps MP3", bitrate),
             ".mp3".to_string()
         )),
-        "aac-mp4" | "he-aac-mp4" => Some((
+        "aac" | "he-aac" | "aac-mp4" | "he-aac-mp4" => Some((
             format!("{} Kbps AAC", bitrate),
             ".m4a".to_string()
         )),
@@ -421,9 +421,9 @@ fn write_mp4_tags(track_path: &PathBuf, meta: &ParsedAlbumMeta) -> Result<(), MP
 
 fn write_tags(track_path: &PathBuf, codec: &str, meta: &ParsedAlbumMeta) -> Result<(), Box<dyn Error>> {
     match codec {
-        "flac-mp4" => write_flac_tags(track_path, meta)?,
-        "mp3-mp4" => write_mp3_tags(track_path, meta)?,
-        "aac-mp4" | "he-aac-mp4" => write_mp4_tags(track_path, meta)?,
+        "flac" | "flac-mp4" => write_flac_tags(track_path, meta)?,
+        "mp3" | "mp3-mp4" => write_mp3_tags(track_path, meta)?,
+        "aac" | "he-aac" | "aac-mp4" | "he-aac-mp4" => write_mp4_tags(track_path, meta)?,
         _ => {},
     }
     Ok(())
@@ -608,8 +608,8 @@ fn process_album(c: &mut YandexMusicClient, config: &Config, album_id: &str, tra
             volume.retain(|track| track.id == track_id);
         }
 
-        if meta.volumes[0].len() < 1 {
-            return Err("track not found in album".into())
+        if meta.volumes.iter().all(|v| v.is_empty()) {
+            return Err("track not found in album".into());
         }
     }
 
