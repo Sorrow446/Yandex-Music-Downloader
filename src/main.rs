@@ -44,6 +44,13 @@ fn get_db_path() -> Result<PathBuf, Box<dyn Error>> {
     Ok(path)
 }
 
+#[cfg(target_os = "macos")]
+fn get_db_path() -> Result<PathBuf, Box<dyn Error>> {
+    let home_path: PathBuf = env::var("HOME")?.into();
+    let path = home_path.join("Library/Application Support/YandexMusic/Local Storage/leveldb/");
+    Ok(path)
+}
+
 fn read_token(path: &PathBuf) -> Result<String, Box<dyn Error>> {
     let opts = Options::default();
     let mut db = DB::open(&path, opts)?;
