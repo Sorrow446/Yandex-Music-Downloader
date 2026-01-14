@@ -37,9 +37,9 @@ const IS_WINDOWS: bool = true;
 const IS_WINDOWS: bool = false;
 
 const REGEX_STRINGS: [&str; 3] = [
-    r#"^https://music\.yandex\.(?:by|kz|ru)/album/(\d+)(?:/track/(\d+)(?:\?.+)?)?$"#,
-    r#"^https://music\.yandex\.(?:by|kz|ru)/users/(.+)/playlists/(\d+)(?:\?.+)?$"#,
-    r#"^https://music\.yandex\.(?:by|kz|ru)/artist/(\d+)(?:/albums)?(?:\?.+)?$"#,
+    r#"^https://music\.yandex\.(?:by|kz|ru|com)/album/(\d+)(?:/track/(\d+)(?:\?.+)?)?$"#,
+    r#"^https://music\.yandex\.(?:by|kz|ru|com)/users/(.+)/playlists/(\d+)(?:\?.+)?$"#,
+    r#"^https://music\.yandex\.(?:by|kz|ru|com)/artist/(\d+)(?:/albums)?(?:\?.+)?$"#,
 ];
 
 type Aes128Ctr = ctr::Ctr128BE<Aes128>; // AES-128 in CTR mode
